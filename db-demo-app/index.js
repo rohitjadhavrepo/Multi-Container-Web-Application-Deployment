@@ -1,57 +1,70 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/yourDatabaseName', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+// Connect to MySQL
+const db = mysql.createConnection({
+    host: 'host.docker.internal',   // IMPORTANT for Docker
+    user: 'rohit',
+    password: 'password',
+    database: 'yourDatabaseName'
 });
 
-// Create a Mongoose model
-const Email = mongoose.model('Email', {
-    email: String,
+db.connect((err) => {
+    if (err) {
+        console.error('Database connection failed:', err);
+        return;
+    }
+    console.log('Connected to MySQL');
 });
 
-// Middleware
+// Create table (same purpose as Mongoose model)
+db.query(`CREATE TABLE IF NOT EXISTS emails (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255)
+)`);
+
+// Middleware (same as before)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// Routes
+// Routes (same structure, logic changed internally)
+
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
 
-app.post('/add-email', async (req, res) => {
+app.post('/add-email', (req, res) => {
     const { email } = req.body;
-    try {
-        const newEmail = new Email({ email });
-        await newEmail.save();
+
+    db.query('INSERT INTO emails (email) VALUES (?)', [email], (err) => {
+        if (err) {
+            res.status(500).send('Error adding email');
+            return;
+        }
         res.redirect('/');
-    } catch (error) {
-        res.status(500).send('Error adding email');
-    }
+    });
 });
 
-app.get('/emails', async (req, res) => {
-    try {
-        const emails = await Email.find({});
-        res.json(emails);
-    } catch (error) {
-        res.status(500).send('Error fetching emails');
-    }
+app.get('/emails', (req, res) => {
+    db.query('SELECT * FROM emails', (err, results) => {
+        if (err) {
+            res.status(500).send('Error fetching emails');
+            return;
+        }
+        res.json(results);
+    });
 });
 
 app.get('/exit', (req, res) => {
-    // Perform actions to stop the server or any other desired actions
     res.send('Server stopped');
-    process.exit(0); // This stops the server (not recommended in production)
+    process.exit(0);
 });
 
-// Start server
+// Start server (same)
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
